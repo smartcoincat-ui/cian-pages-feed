@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import json, re, os
+import json, re, os, hashlib
 from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 SEARCH_URL = os.getenv("SEARCH_URL", "https://www.cian.ru/kupit-mnogkomnatnuyu-kvartiru/")
 LIMIT = int(os.getenv("LIMIT", "10"))
 OUT = "docs/data.json"
+IMG_DIR = "docs/images"
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36"
@@ -15,6 +16,29 @@ headers = {
 res = requests.get(SEARCH_URL, headers=headers, timeout=30)
 res.raise_for_status()
 soup = BeautifulSoup(res.text, "html.parser")
+
+os.makedirs(IMG_DIR, exist_ok=True)
+
+
+def cache_image(url: str, idx: int) -> str:
+    if not url:
+        return ""
+    try:
+        ext = ".jpg"
+        p = urlparse(url)
+        if "." in p.path.split("/")[-1]:
+            ext = "." + p.path.split("/")[-1].split(".")[-1].split("?")[0]
+            if len(ext) > 5:
+                ext = ".jpg"
+        name = hashlib.md5(url.encode("utf-8")).hexdigest()[:12] + f"_{idx}" + ext
+        local_path = os.path.join(IMG_DIR, name)
+        r = requests.get(url, headers=headers, timeout=30)
+        r.raise_for_status()
+        with open(local_path, "wb") as f:
+            f.write(r.content)
+        return f"images/{name}"
+    except Exception:
+        return ""
 
 cards = []
 for a in soup.select('a[href*="/sale/flat/"]'):
@@ -42,13 +66,15 @@ for a in soup.select('a[href*="/sale/flat/"]'):
     price_match = re.search(r"([\d\s]{2,}₽)", text)
     sqm_match = re.search(r"(\d+[\s\d]*[\.,]?\d*\s*м²)", text)
 
+    local_img = cache_image(img, len(cards)+1)
+
     cards.append({
         "id": item_id,
         "title": text[:140],
         "price": price_match.group(1) if price_match else "",
         "area": sqm_match.group(1) if sqm_match else "",
         "url": href.split("?")[0],
-        "image": img,
+        "image": local_img or img,
     })
 
     if len(cards) >= LIMIT:
