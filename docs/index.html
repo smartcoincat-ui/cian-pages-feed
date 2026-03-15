@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Поиск квартир — интерактив</title>
+  <style>
+    body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#0b1120;color:#eaf2ff;margin:0;padding:24px}
+    .wrap{max-width:1200px;margin:0 auto}.top{display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap}
+    .muted{opacity:.8;font-size:14px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:16px}
+    .card{background:#121a33;border:1px solid #233159;border-radius:16px;overflow:hidden}.card img{width:100%;height:190px;object-fit:cover;background:#1d2747}
+    .c{padding:12px}.t{font-weight:700;line-height:1.35;margin-bottom:6px}.m{font-size:14px;opacity:.9}
+    a.btn{display:inline-block;margin-top:8px;background:#4d7cff;color:#fff;text-decoration:none;padding:8px 11px;border-radius:10px;font-weight:600}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <h1>🏠 Объявления (топ-10)</h1>
+        <div id="src" class="muted">Загрузка…</div>
+      </div>
+    </div>
+    <div id="grid" class="grid"></div>
+  </div>
+<script>
+(async()=>{
+  const r=await fetch('./data.json?_=' + Date.now());
+  const data=await r.json();
+  document.getElementById('src').textContent=`Источник: ${data.source_url} • объявлений: ${data.count}`;
+  const grid=document.getElementById('grid');
+  grid.innerHTML = data.items.map(x=>`<div class="card"><img src="${x.image||''}" alt=""><div class="c"><div class="t">${x.title}</div><div class="m">${x.price||''} ${x.area?('• '+x.area):''}</div><a class="btn" href="${x.url}" target="_blank">Открыть</a></div></div>`).join('');
+})();
+</script>
+</body>
+</html>
