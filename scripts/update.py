@@ -13,11 +13,9 @@ headers = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36"
 }
 
-res = requests.get(SEARCH_URL, headers=headers, timeout=30)
-res.raise_for_status()
-soup = BeautifulSoup(res.text, "html.parser")
 
-os.makedirs(IMG_DIR, exist_ok=True)
+def clean(s: str) -> str:
+    return re.sub(r"\s+", " ", (s or "")).strip()
 
 
 def cache_image(url: str, idx: int) -> str:
@@ -26,8 +24,9 @@ def cache_image(url: str, idx: int) -> str:
     try:
         ext = ".jpg"
         p = urlparse(url)
-        if "." in p.path.split("/")[-1]:
-            ext = "." + p.path.split("/")[-1].split(".")[-1].split("?")[0]
+        tail = p.path.split("/")[-1]
+        if "." in tail:
+            ext = "." + tail.split(".")[-1].split("?")[0]
             if len(ext) > 5:
                 ext = ".jpg"
         name = hashlib.md5(url.encode("utf-8")).hexdigest()[:12] + f"_{idx}" + ext
@@ -40,6 +39,12 @@ def cache_image(url: str, idx: int) -> str:
     except Exception:
         return ""
 
+
+res = requests.get(SEARCH_URL, headers=headers, timeout=30)
+res.raise_for_status()
+soup = BeautifulSoup(res.text, "html.parser")
+os.makedirs(IMG_DIR, exist_ok=True)
+
 cards = []
 for a in soup.select('a[href*="/sale/flat/"]'):
     href = a.get("href")
@@ -47,6 +52,7 @@ for a in soup.select('a[href*="/sale/flat/"]'):
         continue
     if href.startswith("/"):
         href = "https://www.cian.ru" + href
+
     m = re.search(r"/sale/flat/(\d+)/", href)
     if not m:
         continue
@@ -55,24 +61,46 @@ for a in soup.select('a[href*="/sale/flat/"]'):
         continue
 
     card_root = a.find_parent("article") or a.parent
-    text = " ".join((card_root.get_text(" ", strip=True) if card_root else a.get_text(" ", strip=True)).split())
+    text = clean(card_root.get_text(" ", strip=True) if card_root else a.get_text(" ", strip=True))
 
-    img = None
+    img = ""
     if card_root:
         img_tag = card_root.find("img")
         if img_tag:
-            img = img_tag.get("src") or img_tag.get("data-src")
+            img = img_tag.get("src") or img_tag.get("data-src") or ""
 
-    price_match = re.search(r"([\d\s]{2,}₽)", text)
-    sqm_match = re.search(r"(\d+[\s\d]*[\.,]?\d*\s*м²)", text)
+    price_m = re.search(r"(\d[\d\s]{3,})\s*₽", text)
+    area_m = re.search(r"(\d+[\.,]?\d*)\s*м²", text)
+    rooms_m = re.search(r"([4567])\-комн\.", text)
+    floor_m = re.search(r"(\d+)\/(\d+)\s*этаж", text)
+    metro_m = re.search(r"м\.\s*([^,]+)", text)
+    bath_m = re.search(r"(\d+)\s*сануз", text)
 
-    local_img = cache_image(img, len(cards)+1)
+    tags = []
+    if re.search(r"дизайнер|дизайн", text, re.I):
+        tags.append("Дизайнерский ремонт")
+    if re.search(r"евроремонт", text, re.I):
+        tags.append("Евроремонт")
+    if re.search(r"с мебелью", text, re.I):
+        tags.append("С мебелью")
+    if re.search(r"пентхаус", text, re.I):
+        tags.append("Пентхаус")
+
+    local_img = cache_image(img, len(cards) + 1)
 
     cards.append({
         "id": item_id,
-        "title": text[:140],
-        "price": price_match.group(1) if price_match else "",
-        "area": sqm_match.group(1) if sqm_match else "",
+        "title": clean(a.get_text(" ", strip=True))[:120] or text[:120],
+        "price": int(price_m.group(1).replace(" ", "")) if price_m else None,
+        "price_text": f"{price_m.group(1)} ₽" if price_m else "",
+        "area": float(area_m.group(1).replace(",", ".")) if area_m else None,
+        "area_text": f"{area_m.group(1)} м²" if area_m else "",
+        "rooms": int(rooms_m.group(1)) if rooms_m else None,
+        "floor": int(floor_m.group(1)) if floor_m else None,
+        "floors_total": int(floor_m.group(2)) if floor_m else None,
+        "metro": clean(metro_m.group(1)) if metro_m else "",
+        "bathrooms": int(bath_m.group(1)) if bath_m else None,
+        "tags": tags,
         "url": href.split("?")[0],
         "image": local_img or img,
     })

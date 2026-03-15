@@ -3,33 +3,65 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Поиск квартир — интерактив</title>
+  <title>Квартиры — интерактивная витрина</title>
   <style>
-    body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#0b1120;color:#eaf2ff;margin:0;padding:24px}
-    .wrap{max-width:1200px;margin:0 auto}.top{display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap}
-    .muted{opacity:.8;font-size:14px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:16px}
-    .card{background:#121a33;border:1px solid #233159;border-radius:16px;overflow:hidden}.card img{width:100%;height:190px;object-fit:cover;background:#1d2747}
-    .c{padding:12px}.t{font-weight:700;line-height:1.35;margin-bottom:6px}.m{font-size:14px;opacity:.9}
-    a.btn{display:inline-block;margin-top:8px;background:#4d7cff;color:#fff;text-decoration:none;padding:8px 11px;border-radius:10px;font-weight:600}
+    :root{--bg:#080d1a;--card:#121a33;--line:#233159;--txt:#eaf2ff;--muted:#9db0d8;--accent:#4d7cff}
+    body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(1200px 500px at 10% -10%,#1b2d64 0,transparent 50%),var(--bg);color:var(--txt);margin:0;padding:24px}
+    .wrap{max-width:1240px;margin:0 auto}
+    .head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-end}
+    h1{margin:0 0 8px;font-size:30px}
+    .muted{color:var(--muted);font-size:14px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-top:18px}
+    .card{background:linear-gradient(180deg,#121a33,#0f1730);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 18px 45px rgba(0,0,0,.35)}
+    .cover{position:relative}
+    .cover img{width:100%;height:210px;object-fit:cover;display:block;background:#1d2747}
+    .price{position:absolute;left:10px;bottom:10px;background:rgba(8,13,26,.8);backdrop-filter:blur(3px);padding:7px 10px;border-radius:10px;font-weight:800}
+    .body{padding:12px}
+    .title{font-weight:700;line-height:1.32;min-height:44px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+    .chip{font-size:12px;border:1px solid #304275;background:#182448;color:#cfe0ff;padding:4px 8px;border-radius:999px}
+    .meta{font-size:14px;color:#dce7ff;line-height:1.7}
+    .btn{display:inline-block;margin-top:10px;background:var(--accent);color:#fff;text-decoration:none;padding:9px 12px;border-radius:10px;font-weight:700}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="top">
+    <div class="head">
       <div>
-        <h1>🏠 Объявления (топ-10)</h1>
-        <div id="src" class="muted">Загрузка…</div>
+        <h1>🏠 Витрина объявлений</h1>
+        <div id="src" class="muted">Загрузка данных…</div>
       </div>
     </div>
     <div id="grid" class="grid"></div>
   </div>
+
 <script>
+function fmt(n){if(!n&&n!==0)return ''; return new Intl.NumberFormat('ru-RU').format(n)}
 (async()=>{
-  const r=await fetch('./data.json?_=' + Date.now());
-  const data=await r.json();
-  document.getElementById('src').textContent=`Источник: ${data.source_url} • объявлений: ${data.count}`;
-  const grid=document.getElementById('grid');
-  grid.innerHTML = data.items.map(x=>`<div class="card"><img src="${x.image||''}" alt=""><div class="c"><div class="t">${x.title}</div><div class="m">${x.price||''} ${x.area?('• '+x.area):''}</div><a class="btn" href="${x.url}" target="_blank">Открыть</a></div></div>`).join('');
+  const r = await fetch('./data.json?_=' + Date.now());
+  const data = await r.json();
+  document.getElementById('src').textContent = `Источник: ${data.source_url} • карточек: ${data.count}`;
+
+  const html = data.items.map(x=>{
+    const floor = x.floor && x.floors_total ? `${x.floor}/${x.floors_total} этаж` : '';
+    const baths = x.bathrooms ? `${x.bathrooms} санузл.` : 'санузлы: уточнить';
+    const chips = [x.rooms?`${x.rooms} комн.`:'', x.area_text, floor, x.metro?`м. ${x.metro}`:'', baths, ...(x.tags||[])].filter(Boolean)
+      .map(v=>`<span class="chip">${v}</span>`).join('');
+    return `
+      <article class="card">
+        <div class="cover">
+          <img src="${x.image||''}" alt="${x.title||''}">
+          <div class="price">${x.price_text || (x.price?fmt(x.price)+' ₽':'Цена по запросу')}</div>
+        </div>
+        <div class="body">
+          <div class="title">${x.title || 'Объявление'}</div>
+          <div class="row">${chips}</div>
+          <a class="btn" href="${x.url}" target="_blank" rel="noopener">Открыть объявление</a>
+        </div>
+      </article>`;
+  }).join('');
+
+  document.getElementById('grid').innerHTML = html;
 })();
 </script>
 </body>
